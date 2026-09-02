@@ -33,6 +33,7 @@ proves that state with SQL.
 - [HMAC security](#hmac-security)
 - [How to run](#how-to-run)
 - [How to run the hostility test](#how-to-run-the-hostility-test)
+- [Testing with your own events](#testing-with-your-own-events)
 - [Expected results](#expected-results)
 - [API reference](#api-reference)
 - [Dashboard](#dashboard)
@@ -354,6 +355,7 @@ npm run dev                   # tsx watch on :3000
 | `npm run db:reset` | truncate every event table |
 | `npm run test:hostile` | **the full 1,000-event hostility test + verification** |
 | `npm run send:1000` | just the hostile sender |
+| `npm run send:event` | send **one event of your own**, signed, and watch what the database does with it |
 | `npm run verify` | just the verification report against the current database |
 | `npm run chaos` | focused crash/recovery test |
 | `npm test` | automated test suite (39 tests) |
@@ -402,6 +404,102 @@ Raw SQL evidence (12 queries, including all seven required ones):
 ```bash
 docker compose exec -T db psql -U fortress -d webhook_fortress -f - < sql/verification.sql
 ```
+
+---
+
+## Testing with your own events
+
+The hostility test uses generated traffic. To check the receiver against **your**
+values, use the single-event sender — it signs the body correctly, delivers it, and then
+follows the event through the database until it reaches a terminal state:
+
+```bash
+# from a file (missing fields are filled in for you)
+cat > my-event.json <<'JSON'
+{
+  "eventId": "evt_mine_001",
+  "eventType": "order.created",
+  "sequence": 42,
+  "data": { "orderId": "order_abc", "customerId": "cust_777", "amount": 2499.50 }
+}
+JSON
+npm run send:event -- --file my-event.json --watch
+
+# or inline
+npm run send:event -- --id evt_mine_002 --type payment.captured --data '{"amount":99}' --watch
+```
+
+```
+→ POST http://localhost:3000/webhooks/events
+  eventId : evt_mine_001
+  mode    : valid signature
+  HTTP 202 ×1  {"status":"accepted","eventId":"evt_mine_001"}
+
+  status          : PROCESSED
+  attempts        : 1
+  deliveries      : 1
+  business effect : 1 (order.created.processed)
+  timeline        :
+     DELIVERY   ACCEPTED       #1
+     PROCESSING SUCCESS        #1
+  effect payload  : {"amount":2499.5,"eventId":"evt_mine_001","orderId":"order_abc",…}
+```
+
+### Reproducing each hostile condition with your own event
+
+| what you want to check | command | expected |
+|---|---|---|
+| Duplicates / retry storm | `npm run send:event -- --file my-event.json --times 20 --concurrent --watch` | 1×`202`, 19×`200 duplicate`, `deliveries: 20`, **1** business effect |
+| Forged signature | `npm run send:event -- --file my-event.json --bad-signature --watch` | `401`, and *"the receiver has NO record of this event"* |
+| Missing signature | `npm run send:event -- --file my-event.json --no-signature --watch` | `401`, nothing in the inbox |
+| Body modified after signing | `npm run send:event -- --file my-event.json --tamper` | `401 INVALID_SIGNATURE` |
+| Invalid JSON (correctly signed) | `npm run send:event -- --raw broken.txt` | `400 INVALID_JSON` |
+| Schema violation | `npm run send:event -- --raw no-event-id.json` | `400 SCHEMA_INVALID` |
+| Transient failure → retries → success | add `"failUntilAttempt": 3` to `data` | `attempts: 3`, `PROCESSED`, **1** effect |
+| Permanent failure → dead letter | add `"alwaysFail": true` to `data` | `DEAD_LETTERED` after 5 attempts, **0** effects |
+| Non-retryable failure | add `"nonRetryable": true` to `data` | `DEAD_LETTERED` on attempt 1 |
+| Crash mid-processing | `curl -XPOST localhost:3000/admin/chaos/crash` while events are in flight | recovered on restart, no duplicates |
+
+`--raw` sends the file's bytes verbatim, which is what you want for malformed input —
+`--file` deliberately fills in a missing `eventId`/`timestamp` for you, so it would never
+produce a schema error.
+
+The three failure-injection fields (`failUntilAttempt`, `alwaysFail`, `nonRetryable`) live
+in `data` and only do anything while `SIMULATE_FAILURES=true`. With it off, your payload is
+processed normally and those keys are ignored.
+
+### Checking the result yourself
+
+```bash
+# the API the dashboard uses
+curl -s localhost:3000/admin/events/evt_mine_001 | jq
+
+# or straight from Postgres
+docker compose exec -T db psql -U fortress -d webhook_fortress \
+  -c "SELECT event_id, status, processing_attempts, delivery_count FROM webhook_events WHERE event_id='evt_mine_001';" \
+  -c "SELECT * FROM processed_results WHERE event_id='evt_mine_001';" \
+  -c "SELECT source, status, attempt_number, error_message FROM webhook_attempts WHERE event_id='evt_mine_001' ORDER BY id;"
+```
+
+Or open the event in the dashboard directly:
+`http://localhost:3000/?view=events&event=evt_mine_001`
+
+### Signing by hand
+
+If you would rather drive it from curl or your own client, the signature is just an
+HMAC-SHA256 of the exact bytes you send:
+
+```bash
+BODY='{"eventId":"evt_curl_1","eventType":"order.created","sequence":1,"timestamp":"2026-09-02T10:00:00.000Z","data":{"amount":10}}'
+SIG=$(printf '%s' "$BODY" | openssl dgst -sha256 -hmac "$WEBHOOK_SECRET" -hex | awk '{print $NF}')
+curl -X POST localhost:3000/webhooks/events \
+  -H 'content-type: application/json' \
+  -H "X-Webhook-Signature: $SIG" \
+  -d "$BODY"
+```
+
+Sign the **raw bytes you actually transmit** — if your client reformats the JSON after you
+sign it, the signature will (correctly) no longer match.
 
 ---
 

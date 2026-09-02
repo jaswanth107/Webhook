@@ -16,6 +16,7 @@
     "db:migrate": "tsx server/src/db/migrate-cli.ts",
     "db:reset": "tsx scripts/db-reset.ts",
     "send:1000": "tsx scripts/send-1000-events.ts",
+    "send:event": "tsx scripts/send-event.ts",
     "verify": "tsx scripts/verify-results.ts",
     "chaos": "tsx scripts/chaos-test.ts",
     "test:hostile": "tsx scripts/hostile-test.ts",
