@@ -1,0 +1,42 @@
+{
+  "name": "webhook-fortress",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A webhook receiver that survives hostile delivery conditions: duplicates, retry storms, tampered signatures, crashes.",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch server/src/index.ts",
+    "build": "tsc -p tsconfig.build.json && node scripts/copy-migrations.mjs",
+    "start": "node dist/server/src/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "db:migrate": "tsx server/src/db/migrate-cli.ts",
+    "db:reset": "tsx scripts/db-reset.ts",
+    "send:1000": "tsx scripts/send-1000-events.ts",
+    "verify": "tsx scripts/verify-results.ts",
+    "chaos": "tsx scripts/chaos-test.ts",
+    "test:hostile": "tsx scripts/hostile-test.ts",
+    "test": "tsx --test --test-concurrency=1 tests/*.test.ts",
+    "stack:up": "docker compose up --build -d",
+    "stack:down": "docker compose down -v",
+    "stack:logs": "docker compose logs -f receiver"
+  },
+  "dependencies": {
+    "@fastify/static": "^8.2.0",
+    "fastify": "^5.12.1",
+    "pg": "^8.16.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/pg": "^8.15.5",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "allowScripts": {
+    "esbuild@0.28.2": true
+  }
+}

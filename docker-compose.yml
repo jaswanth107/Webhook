@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fortress-db
+    environment:
+      POSTGRES_USER: fortress
+      POSTGRES_PASSWORD: fortress
+      POSTGRES_DB: webhook_fortress
+    ports:
+      # Host port 5433 keeps out of the way of any local Postgres on 5432.
+      - "5433:5432"
+    volumes:
+      - fortress_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fortress -d webhook_fortress"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    restart: unless-stopped
+
+  receiver:
+    build:
+      context: .
+    container_name: fortress-receiver
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://fortress:fortress@db:5432/webhook_fortress
+      PORT: "3000"
+      HOST: 0.0.0.0
+      NODE_ENV: production
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-super-secret-webhook-key-change-me}
+      MAX_PROCESSING_ATTEMPTS: ${MAX_PROCESSING_ATTEMPTS:-5}
+      RETRY_BASE_DELAY_MS: ${RETRY_BASE_DELAY_MS:-1000}
+      RETRY_MAX_DELAY_MS: ${RETRY_MAX_DELAY_MS:-60000}
+      PROCESSING_TIMEOUT_SECONDS: ${PROCESSING_TIMEOUT_SECONDS:-30}
+      WORKER_BATCH_SIZE: ${WORKER_BATCH_SIZE:-50}
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-10}
+      # The hostility test needs deterministic failures and the chaos endpoints.
+      SIMULATE_FAILURES: ${SIMULATE_FAILURES:-true}
+      CHAOS_ENABLED: ${CHAOS_ENABLED:-true}
+    ports:
+      - "3000:3000"
+    # The whole point of the exercise: when the receiver is killed mid-flight it
+    # comes straight back and runs its recovery logic.
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:3000/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  fortress_pgdata:

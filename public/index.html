@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Webhook Fortress — Control Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>🛡️</text></svg>" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="brand-mark">🛡</span>
+      <div>
+        <h1>Webhook Fortress</h1>
+        <p class="brand-sub">hostile-delivery receiver &middot; control center</p>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span id="health-pill" class="pill pill-muted" title="Receiver health">checking…</span>
+      <label class="switch" title="Poll the API every 3 seconds">
+        <input type="checkbox" id="auto-refresh" checked />
+        <span>auto-refresh</span>
+      </label>
+      <button id="refresh-btn" class="btn" title="Refresh now">Refresh</button>
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab active" data-view="overview" role="tab">Overview</button>
+    <button class="tab" data-view="events" role="tab">Events</button>
+    <button class="tab" data-view="dead-letters" role="tab">Dead Letters</button>
+    <button class="tab" data-view="security" role="tab">Security</button>
+  </nav>
+
+  <main>
+    <div id="global-error" class="banner banner-error" hidden></div>
+
+    <!-- ============================ OVERVIEW ============================ -->
+    <section id="view-overview" class="view">
+      <div class="cards" id="stat-cards">
+        <div class="card skeleton"></div><div class="card skeleton"></div>
+        <div class="card skeleton"></div><div class="card skeleton"></div>
+        <div class="card skeleton"></div><div class="card skeleton"></div>
+        <div class="card skeleton"></div>
+      </div>
+
+      <div class="panel-grid">
+        <section class="panel">
+          <h2>Integrity <span class="hint" title="Live versions of the verification queries">live SQL checks</span></h2>
+          <div id="integrity" class="integrity">
+            <div class="skeleton-line"></div><div class="skeleton-line"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <h2>Status breakdown</h2>
+          <div id="status-bars" class="bars">
+            <div class="skeleton-line"></div><div class="skeleton-line"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel">
+        <h2>Latest events</h2>
+        <div id="recent-table" class="table-wrap"></div>
+      </section>
+    </section>
+
+    <!-- ============================= EVENTS ============================= -->
+    <section id="view-events" class="view" hidden>
+      <div class="toolbar">
+        <div class="filters" id="status-filters">
+          <button class="chip active" data-status="">All</button>
+          <button class="chip" data-status="RECEIVED">Received</button>
+          <button class="chip" data-status="PROCESSING">Processing</button>
+          <button class="chip" data-status="PROCESSED">Processed</button>
+          <button class="chip" data-status="RETRY_PENDING">Retry pending</button>
+          <button class="chip" data-status="FAILED">Failed</button>
+          <button class="chip" data-status="DEAD_LETTERED">Dead lettered</button>
+        </div>
+        <div class="search">
+          <input id="search-input" type="search" placeholder="filter by eventId…" autocomplete="off" />
+          <select id="page-size" title="Rows per page">
+            <option value="25">25</option>
+            <option value="50" selected>50</option>
+            <option value="100">100</option>
+          </select>
+        </div>
+      </div>
+      <div id="events-table" class="table-wrap"></div>
+      <div class="pager">
+        <button class="btn" id="prev-page">← Prev</button>
+        <span id="page-info" class="muted">—</span>
+        <button class="btn" id="next-page">Next →</button>
+      </div>
+    </section>
+
+    <!-- ========================== DEAD LETTERS ========================== -->
+    <section id="view-dead-letters" class="view" hidden>
+      <div class="banner banner-info">
+        Permanently failed events are preserved here with their full payload — nothing is ever silently discarded.
+        Replaying keeps the original <code>eventId</code>, so the <code>UNIQUE(event_id)</code> constraint on
+        <code>processed_results</code> still allows exactly one business effect.
+      </div>
+      <div id="dead-letters-table" class="table-wrap"></div>
+    </section>
+
+    <!-- ============================ SECURITY ============================ -->
+    <section id="view-security" class="view" hidden>
+      <div class="banner banner-info">
+        Every rejected request is recorded here and <strong>never</strong> in <code>webhook_events</code>.
+        Payloads of unverified requests are deliberately not stored or parsed.
+      </div>
+      <div class="cards" id="security-cards"></div>
+      <div id="security-table" class="table-wrap"></div>
+    </section>
+  </main>
+
+  <!-- ========================= EVENT DETAIL DRAWER ====================== -->
+  <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>
+  <aside id="drawer" class="drawer" hidden aria-label="Event detail">
+    <header class="drawer-head">
+      <div>
+        <h2 id="drawer-title">Event</h2>
+        <p id="drawer-sub" class="muted"></p>
+      </div>
+      <button class="btn btn-ghost" id="drawer-close" title="Close">✕</button>
+    </header>
+    <div id="drawer-body" class="drawer-body"></div>
+  </aside>
+
+  <footer class="footer">
+    <span>Webhook Fortress</span>
+    <span class="muted">database is the source of truth · at-least-once in, exactly-once out</span>
+  </footer>
+
+  <script src="/app.js"></script>
+</body>
+</html>
