@@ -27,14 +27,17 @@
     </div>
   </header>
 
-  <nav class="tabs" role="tablist">
-    <button class="tab active" data-view="overview" role="tab">Overview</button>
-    <button class="tab" data-view="events" role="tab">Events</button>
-    <button class="tab" data-view="dead-letters" role="tab">Dead Letters</button>
-    <button class="tab" data-view="security" role="tab">Security</button>
-  </nav>
+  <div class="shell">
+    <!-- Vertical navigation, pinned to the right edge; the header stays full width. -->
+    <nav class="sidenav" role="tablist" aria-label="Views">
+      <span class="sidenav-label">Views</span>
+      <button class="tab active" data-view="overview" role="tab"><span class="tab-mark">◈</span>Overview</button>
+      <button class="tab" data-view="events" role="tab"><span class="tab-mark">≡</span>Events</button>
+      <button class="tab" data-view="dead-letters" role="tab"><span class="tab-mark">🗃</span>Dead Letters</button>
+      <button class="tab" data-view="security" role="tab"><span class="tab-mark">🛡</span>Security</button>
+    </nav>
 
-  <main>
+    <main>
     <div id="global-error" class="banner banner-error" hidden></div>
 
     <!-- ============================ OVERVIEW ============================ -->
@@ -116,7 +119,8 @@
       <div class="cards" id="security-cards"></div>
       <div id="security-table" class="table-wrap"></div>
     </section>
-  </main>
+    </main>
+  </div>
 
   <!-- ========================= EVENT DETAIL DRAWER ====================== -->
   <div id="drawer-backdrop" class="drawer-backdrop" hidden></div>

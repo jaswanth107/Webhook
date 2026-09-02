@@ -93,22 +93,50 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--accent); }
 .pill-bad { color: var(--danger); border-color: rgba(255, 92, 92, 0.35); background: rgba(255, 92, 92, 0.1); }
 .pill-muted { color: var(--text-faint); }
 
-/* ---- tabs --------------------------------------------------------------- */
-.tabs { display: flex; gap: 4px; padding: 0 24px; border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 71px; z-index: 19; overflow-x: auto; }
-.tab {
-  background: none; border: none; border-bottom: 2px solid transparent; color: var(--text-dim);
-  padding: 12px 14px; font-size: 13px; cursor: pointer; white-space: nowrap;
-  transition: color 0.15s ease, border-color 0.15s ease;
-}
-.tab:hover { color: var(--text); }
-.tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+/* ---- shell + right-hand navigation --------------------------------------- */
+.shell { display: flex; align-items: flex-start; max-width: 1700px; margin: 0 auto; }
 
-main { padding: 24px; max-width: 1500px; margin: 0 auto; }
+/* `order` keeps the nav first in the DOM (screen readers, tab order) while
+   painting it on the right of the content. */
+.sidenav {
+  order: 2;
+  flex: 0 0 210px;
+  width: 210px;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 20px 12px;
+  border-left: 1px solid var(--border);
+  background: linear-gradient(180deg, var(--surface), transparent 60%);
+  position: sticky;
+  top: 71px;
+  height: calc(100vh - 71px);
+  z-index: 19;
+}
+.sidenav-label {
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em;
+  color: var(--text-faint); padding: 0 12px 10px;
+}
+.tab {
+  display: flex; align-items: center; gap: 10px;
+  background: none; border: none; border-right: 2px solid transparent; border-radius: var(--radius-sm) 0 0 var(--radius-sm);
+  color: var(--text-dim); text-align: left; width: 100%;
+  padding: 10px 12px; font-size: 13px; cursor: pointer; white-space: nowrap;
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+}
+.tab-mark { font-size: 12px; width: 16px; text-align: center; opacity: 0.75; }
+.tab:hover { color: var(--text); background: var(--surface-2); }
+.tab.active { color: var(--accent); background: var(--accent-soft); border-right-color: var(--accent); }
+.tab.active .tab-mark { opacity: 1; }
+
+main { order: 1; flex: 1 1 auto; min-width: 0; padding: 24px; }
 .view { display: flex; flex-direction: column; gap: 20px; animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
 /* ---- cards -------------------------------------------------------------- */
-.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; }
+/* 165px keeps all seven overview cards on one row alongside the side rail. */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(165px, 1fr)); gap: 12px; }
 .card {
   background: linear-gradient(180deg, var(--surface-2), var(--surface));
   border: 1px solid var(--border); border-radius: var(--radius); padding: 16px;
@@ -236,9 +264,24 @@ pre.json {
 
 .footer { padding: 20px 24px 32px; display: flex; justify-content: space-between; gap: 12px; color: var(--text-faint); font-size: 11px; border-top: 1px solid var(--border); margin-top: 24px; flex-wrap: wrap; }
 
+/* Narrow screens: the side rail folds back into a horizontal strip above the
+   content, which is the only layout that stays usable below ~900px. */
+@media (max-width: 900px) {
+  .shell { flex-direction: column; }
+  .sidenav {
+    order: 0; flex: none; width: 100%; height: auto; align-self: auto;
+    flex-direction: row; overflow-x: auto; gap: 4px; padding: 8px 12px;
+    border-left: none; border-bottom: 1px solid var(--border);
+    background: var(--bg); top: 71px;
+  }
+  .sidenav-label { display: none; }
+  .tab { width: auto; border-right: none; border-bottom: 2px solid transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
+  .tab.active { border-right-color: transparent; border-bottom-color: var(--accent); }
+}
+
 @media (max-width: 700px) {
   .topbar { flex-direction: column; align-items: flex-start; }
-  .tabs { top: 118px; }
+  .sidenav { top: 118px; }
   main { padding: 16px; }
   .card-value { font-size: 22px; }
 }
