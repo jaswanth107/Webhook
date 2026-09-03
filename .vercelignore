@@ -1,12 +1,13 @@
-# Vercel serves public/ as a static site. Nothing else needs uploading.
+# The build compiles server/ with tsc, so that must be uploaded. Everything
+# below is either large, secret, or irrelevant to a Vercel build.
 node_modules
 dist
-server
-scripts
 tests
 sql
 tmp
 Dockerfile
 docker-compose.yml
 render.yaml
+fly.toml
+.env
 *.log

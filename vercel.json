@@ -1,23 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "echo 'static dashboard - nothing to build'",
-  "installCommand": "echo 'no dependencies - public/ is plain HTML, CSS and JS'",
-  "outputDirectory": "public",
+  "buildCommand": "npm run build",
+  "installCommand": "npm ci --include=dev",
   "framework": null,
-  "rewrites": [
-    {
-      "source": "/health",
-      "destination": "https://webhook-fortress-sh4v.onrender.com/health"
-    },
-    {
-      "source": "/metrics",
-      "destination": "https://webhook-fortress-sh4v.onrender.com/metrics"
-    },
-    {
-      "source": "/admin/:path*",
-      "destination": "https://webhook-fortress-sh4v.onrender.com/admin/:path*"
-    }
-  ],
   "headers": [
     {
       "source": "/(.*)",
@@ -40,6 +25,24 @@
           "value": "no-cache"
         }
       ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/health",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/metrics",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/admin/:path*",
+      "destination": "/api/index"
+    },
+    {
+      "source": "/webhooks/:path*",
+      "destination": "/api/index"
     }
   ]
 }

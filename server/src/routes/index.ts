@@ -5,6 +5,7 @@ import { receiveWebhook } from '../controllers/webhookController.js';
 import * as admin from '../controllers/adminController.js';
 import { hardKill } from '../services/chaos.js';
 import { requireAdminAuth } from '../services/adminAuth.js';
+import { reapStaleLeases } from '../services/recovery.js';
 import { eventWorker } from '../workers/eventWorker.js';
 import * as eventsRepo from '../repositories/eventRepository.js';
 import { getDashboardStats } from '../repositories/statsRepository.js';
@@ -125,6 +126,28 @@ export async function registerRoutes(app: FastifyInstance): Promise<void> {
   app.get('/admin/dead-letters', admin.listDeadLetters);
   app.post('/admin/dead-letters/:eventId/retry', admin.retryDeadLetter);
   app.get('/admin/security-events', admin.listSecurityEvents);
+
+  // ---- serverless processing tick -----------------------------------------
+  /**
+   * Runs ONE claim-and-process cycle, then returns.
+   *
+   * On a normal deployment the worker loop does this continuously and this
+   * route is unnecessary. On a platform with no long-lived process (Vercel and
+   * friends) there is nothing to run the loop, so an external scheduler calls
+   * this instead. It is admin-guarded because it does real work.
+   *
+   * Safe to call concurrently: claimDueEvents uses FOR UPDATE SKIP LOCKED, so
+   * two overlapping ticks can never claim the same event.
+   */
+  app.post('/admin/tick', async (_request, reply) => {
+    const started = Date.now();
+    const [claimed, reclaimed] = await Promise.all([eventWorker.tick(), reapStaleLeases()]);
+    log.info('WORKER_TICK', { claimed, reclaimed, ms: Date.now() - started });
+    await reply.send({
+      ok: true,
+      data: { claimed, staleReclaimed: reclaimed, ms: Date.now() - started },
+    });
+  });
 
   // ---- chaos (test-only) --------------------------------------------------
   if (cfg.CHAOS_ENABLED) {

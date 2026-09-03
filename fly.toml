@@ -1,0 +1,65 @@
+# Fly.io deployment for the receiver.
+#
+# Unlike the free Render service this replaces, the machine is pinned running:
+# the worker is a long-lived loop and the retry schedule lives in the database,
+# so a machine that stops between requests turns every scheduled retry into a
+# retry that fires whenever someone next happens to visit.
+#
+#   flyctl secrets set DATABASE_URL=... WEBHOOK_SECRET=... ADMIN_API_TOKEN=...
+#   flyctl deploy
+#
+# The dashboard lives on Vercel and proxies to this app -- update the three
+# rewrite destinations in vercel.json once the hostname is known.
+
+app = 'webhook-fortress'
+# us-east-2 is where the Neon database lives. Every request makes several round
+# trips to Postgres, so the app is placed next to the database rather than next
+# to the user: co-locating saves more latency than it costs.
+primary_region = 'ord'
+
+[build]
+  dockerfile = 'Dockerfile'
+
+[env]
+  NODE_ENV = 'production'
+  PORT = '3000'
+  # Fly terminates TLS at its proxy, so X-Forwarded-For is trustworthy here.
+  # This IP is what gets recorded in security_events.remote_ip.
+  TRUST_PROXY = 'true'
+  # Neon's free tier caps connections, and a deploy briefly runs two machines.
+  PG_POOL_MAX = '5'
+  # Fly restarts a machine whose health check fails, so a backlog-driven 503
+  # would turn a slow queue into a restart loop. /health stays pure liveness;
+  # watch webhook_backlog_events from /metrics instead.
+  HEALTH_MAX_BACKLOG = '0'
+  # 500ms idle polling is ~173,000 queries a day and pins a free Neon compute
+  # awake. Safe to relax because ingestion calls eventWorker.notify(), so new
+  # events are still picked up immediately; this only bounds retry lateness.
+  WORKER_POLL_INTERVAL_MS = '10000'
+  WORKER_BATCH_SIZE = '25'
+  # Both are refused outright when NODE_ENV=production; set explicitly so the
+  # intent is visible in `flyctl config show` rather than implied by a default.
+  CHAOS_ENABLED = 'false'
+  SIMULATE_FAILURES = 'false'
+  LOG_LEVEL = 'info'
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  # The whole point of moving off Render's free tier: never sleep.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ['app']
+
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '30s'
+    method = 'GET'
+    path = '/health'
+
+[[vm]]
+  size = 'shared-cpu-1x'
+  memory = '512mb'
+  cpus = 1
