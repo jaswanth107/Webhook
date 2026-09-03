@@ -51,6 +51,17 @@ services:
       # from /metrics instead.
       - key: HEALTH_MAX_BACKLOG
         value: "0"
+      # The idle worker polls for due retries on this interval. The default of
+      # 500ms is ~173,000 queries a day, which keeps a free Neon compute awake
+      # permanently and burns the monthly allowance for no benefit. Ten seconds
+      # is safe here because ingestion calls eventWorker.notify(): a freshly
+      # accepted event is picked up immediately regardless of this value, so the
+      # poll only bounds how late a scheduled RETRY can fire.
+      - key: WORKER_POLL_INTERVAL_MS
+        value: "10000"
+      # One free instance, one small pool -- no need to claim 50 at a time.
+      - key: WORKER_BATCH_SIZE
+        value: "25"
       - key: LOG_LEVEL
         value: info
       # Both are refused in production anyway; set explicitly so the intent is
