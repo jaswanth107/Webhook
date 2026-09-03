@@ -39,6 +39,8 @@ proves that state with SQL.
 - [Dashboard](#dashboard)
 - [Automated tests](#automated-tests)
 - [Configuration](#configuration)
+- [Admin API authentication](#admin-api-authentication)
+- [Production safety guards](#production-safety-guards)
 - [Key design decisions](#key-design-decisions)
 - [Edge cases handled](#edge-cases-handled)
 - [Project layout](#project-layout)
@@ -58,6 +60,8 @@ proves that state with SQL.
 | Temporary processing failure | Exponential backoff with jitter, retry schedule persisted in the database |
 | Permanent processing failure | Dead-lettered after `MAX_PROCESSING_ATTEMPTS` with the full payload retained |
 | Receiver restart | Recovery runs before the listener opens; retry state lives in Postgres, not in timers |
+| Someone probing the admin API | Timing-safe token check, `401`, logged to `security_events` like any other rejection |
+| Accepting deliveries but not draining them | `/health` reports the backlog and turns `503` past `HEALTH_MAX_BACKLOG` |
 
 ---
 
@@ -588,7 +592,8 @@ Reading the numbers:
 | method | route | purpose |
 |---|---|---|
 | `POST` | `/webhooks/events` | the webhook endpoint (HMAC-verified) |
-| `GET` | `/health` | `{"status":"ok","database":"up","worker":{…}}` |
+| `GET` | `/health` | liveness + readiness: `{"status","database","worker","backlog","byStatus"}`; `503` past `HEALTH_MAX_BACKLOG` |
+| `GET` | `/metrics` | Prometheus text exposition — aggregates only, no payloads |
 | `GET` | `/admin/stats` | dashboard counters |
 | `GET` | `/admin/integrity` | live versions of the duplicate/lost-event queries |
 | `GET` | `/admin/events` | `?status=&eventId=&eventType=&page=&limit=` |
@@ -600,7 +605,21 @@ Reading the numbers:
 | `POST` | `/admin/chaos/reset` | **test only** — truncates all tables (`CHAOS_ENABLED`) |
 
 Both chaos routes are **not registered at all** unless `CHAOS_ENABLED=true`, so a
-production deployment has no remote kill switch. (A test asserts this.)
+production deployment has no remote kill switch. (A test asserts this, and
+`NODE_ENV=production` refuses to boot with `CHAOS_ENABLED=true` at all.)
+
+Every `/admin/*` route requires `ADMIN_API_TOKEN` when it is set — see
+[Admin API authentication](#admin-api-authentication). `/webhooks/events`, `/health` and
+`/metrics` are never token-guarded.
+
+`/metrics` is scrape-ready and carries the correctness invariants as alertable gauges:
+
+```
+webhook_duplicate_effects_total 0          # MUST be 0 -- an event acted on twice
+webhook_processed_without_effect_total 0   # MUST be 0 -- marked done without doing it
+webhook_backlog_events 0                   # accepting but not draining
+webhook_events_by_status{status="DEAD_LETTERED"} 1
+```
 
 ---
 
@@ -628,7 +647,7 @@ Auto-refreshes every 3s (toggleable), with loading, empty and error states throu
 ## Automated tests
 
 ```bash
-npm test     # 39 tests, run against a dedicated `webhook_fortress_test` database
+npm test     # 57 tests, run against a dedicated `webhook_fortress_test` database
 ```
 
 | file | covers |
@@ -638,6 +657,7 @@ npm test     # 39 tests, run against a dedicated `webhook_fortress_test` databas
 | `tests/retry.test.ts` | backoff maths and jitter bounds; transient failure retried then processed once; retry state survives a new worker instance; permanent failure dead-lettered with payload preserved; non-retryable failure dead-lettered immediately; dead-letter replay stays idempotent |
 | `tests/crash-recovery.test.ts` | event persisted before the crash; `PROCESSING` rows reclaimed and finished exactly once; recovery audit rows; committed-effect-with-stale-status is not double-counted; lease expiry vs. healthy lease; poison-event dead-lettering; duplicate arriving after a crash |
 | `tests/admin-api.test.ts` | health, filtering, pagination, event detail, stats, integrity, dead-letter listing, error shapes, chaos routes absent when disabled |
+| `tests/hardening.test.ts` | admin token required/rejected/accepted (bearer and header), chaos routes guarded, rejected admin requests audited, webhook + health + metrics never blocked; `/health` backlog degradation; `/metrics` format and payload non-leakage; every production configuration guard |
 
 The test database is created automatically; tests never touch the hostility-test data.
 
@@ -652,8 +672,11 @@ to start, never "start insecurely").
 |---|---|---|
 | `DATABASE_URL` | `postgres://fortress:fortress@localhost:5433/webhook_fortress` | Postgres connection |
 | `PORT` / `HOST` | `3000` / `0.0.0.0` | listener |
-| `WEBHOOK_SECRET` | — (**required**, min 8 chars) | HMAC shared secret |
+| `WEBHOOK_SECRET` | — (**required**, min 8 chars; min 32 and non-placeholder in production) | HMAC shared secret |
 | `SIGNATURE_HEADER` | `x-webhook-signature` | signature header name |
+| `ADMIN_API_TOKEN` | unset (**required in production**, min 16 chars) | bearer token guarding `/admin/*`; unset leaves the admin API open |
+| `TRUST_PROXY` | `false` | trust `X-Forwarded-For` for `request.ip` — only enable behind a real proxy |
+| `HEALTH_MAX_BACKLOG` | `0` (disabled) | `/health` returns `503` once this many events sit outside a terminal state |
 | `MAX_PROCESSING_ATTEMPTS` | `5` | failures before dead-lettering |
 | `RETRY_BASE_DELAY_MS` | `1000` | backoff base |
 | `RETRY_MAX_DELAY_MS` / `RETRY_JITTER_RATIO` | `60000` / `0.2` | backoff cap and jitter |
@@ -673,13 +696,67 @@ crash windows, for reproducing a specific failure by hand:
 SIMULATE_CRASH_EVENT=evt_0500 docker compose up
 ```
 
+### Admin API authentication
+
+`/admin/*` exposes every stored payload and can replay dead letters, so it is
+token-guarded. Set `ADMIN_API_TOKEN` and every admin route — the chaos endpoints
+included — requires it:
+
+```bash
+curl -H "Authorization: Bearer $ADMIN_API_TOKEN" localhost:3000/admin/stats
+curl -H "x-admin-token: $ADMIN_API_TOKEN"        localhost:3000/admin/stats   # equivalent
+```
+
+Comparison is timing-safe, for the same reason the signature check is. Rejected admin
+requests are written to `security_events` as `ADMIN_TOKEN_MISSING` / `ADMIN_TOKEN_INVALID`
+and show up in the dashboard's Security view alongside rejected deliveries — someone
+probing `/admin` is exactly the traffic that table exists to record.
+
+Leaving the token unset keeps the API open, so a fresh clone and the hostility test work
+with no setup; the receiver logs `ADMIN_API_UNPROTECTED` at boot when that is the case. It
+is only a safe default because production refuses to start without a token (below). The
+dashboard notices the first `401`, asks for the token once, and keeps it in `localStorage`
+— never in the URL, where it would land in browser history and access logs.
+
+`/health` and `/metrics` stay open: they carry aggregates only, never payloads or event ids.
+
+### Production safety guards
+
+`NODE_ENV=production` makes four configurations fatal at boot rather than merely
+inadvisable. Each one looks like it is working while providing no protection at all, which
+is worse than a receiver that refuses to start:
+
+| refused in production | why |
+|---|---|
+| `CHAOS_ENABLED=true` | `/admin/chaos/crash` is a remote `SIGKILL` and `/admin/chaos/reset` is a remote `TRUNCATE` |
+| `SIMULATE_FAILURES=true` | payload fields (`alwaysFail`, `nonRetryable`) could force failures from outside |
+| `ADMIN_API_TOKEN` unset | the admin API would expose every stored webhook payload |
+| a short or placeholder `WEBHOOK_SECRET` | a correct HMAC keyed with a public secret verifies nothing |
+
+```
+Unsafe production configuration:
+  - CHAOS_ENABLED must be false in production -- it exposes a remote SIGKILL and a TRUNCATE endpoint
+  - ADMIN_API_TOKEN is required in production -- /admin/* exposes every stored webhook payload
+  - WEBHOOK_SECRET looks like the placeholder from .env.example -- generate a real one (openssl rand -hex 32)
+```
+
+`docker-compose.yml` therefore runs as `NODE_ENV=development`: it is the hostility-test
+rig, which needs deterministic failures and the chaos endpoints, and it should not be able
+to pretend otherwise. Generate real values for a real deployment:
+
+```bash
+openssl rand -hex 32   # WEBHOOK_SECRET
+openssl rand -hex 32   # ADMIN_API_TOKEN
+```
+
 ### Structured logging
 
 One JSON object per line, with a canonical lifecycle vocabulary:
 `WEBHOOK_RECEIVED · SIGNATURE_VALID · SIGNATURE_INVALID · SIGNATURE_MISSING · PAYLOAD_INVALID ·
 EVENT_ACCEPTED · DUPLICATE_EVENT · EVENT_PROCESSING_STARTED · EVENT_PROCESSING_FAILED ·
 RETRY_SCHEDULED · EVENT_PROCESSED · EVENT_DEAD_LETTERED · RECOVERY_STARTED ·
-STALE_EVENT_RECOVERED · RECOVERY_COMPLETED · CHAOS_CRASH`
+STALE_EVENT_RECOVERED · RECOVERY_COMPLETED · CHAOS_CRASH · ADMIN_UNAUTHORIZED ·
+ADMIN_API_UNPROTECTED`
 
 ```json
 {"level":"info","event":"EVENT_PROCESSED","ts":"2026-09-02T11:02:16.221Z","eventId":"evt_retry_001","attempt":3,"effectCreated":true}

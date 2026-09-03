@@ -25,7 +25,10 @@ export async function buildApp(): Promise<FastifyInstance> {
   const app = Fastify({
     logger: false, // structured logging is handled by utils/logger
     bodyLimit: 1_048_576, // 1 MiB
-    trustProxy: true,
+    // request.ip ends up in security_events.remote_ip. Trusting X-Forwarded-For
+    // on a directly-exposed port would let a caller forge its own audit trail,
+    // so this is opt-in for deployments that really do sit behind a proxy.
+    trustProxy: cfg.TRUST_PROXY,
   });
 
   /**

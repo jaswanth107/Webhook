@@ -40,6 +40,19 @@
     <main>
     <div id="global-error" class="banner banner-error" hidden></div>
 
+    <!-- Shown only when the admin API answers 401, i.e. ADMIN_API_TOKEN is set. -->
+    <div id="auth-banner" class="banner banner-auth" hidden>
+      <div class="auth-copy">
+        <strong>This receiver's admin API is locked.</strong>
+        <span>Enter the admin token to view events, dead letters and security records.</span>
+      </div>
+      <form id="auth-form" class="auth-form">
+        <input id="auth-token" type="password" placeholder="Admin token" autocomplete="off" spellcheck="false" />
+        <button type="submit" class="btn btn-primary">Unlock</button>
+        <button type="button" id="auth-forget" class="btn">Forget</button>
+      </form>
+    </div>
+
     <!-- ============================ OVERVIEW ============================ -->
     <section id="view-overview" class="view">
       <div class="cards" id="stat-cards">

@@ -15,6 +15,7 @@ import { loadDotEnv } from '../server/src/config/dotenv.js';
 loadDotEnv();
 
 import { deliver, sign, sleep } from './lib/sender.js';
+import { adminFetch } from './lib/adminFetch.js';
 
 const argv = process.argv.slice(2);
 const flag = (name: string): boolean => argv.includes(`--${name}`);
@@ -131,10 +132,10 @@ async function main(): Promise<void> {
   console.log('\n  watching until the event reaches a terminal state…');
   const deadline = Date.now() + 120_000;
   for (;;) {
-    const res = await fetch(`${URL_BASE}/admin/events/${encodeURIComponent(eventId)}`);
+    const res = await adminFetch(`${URL_BASE}/admin/events/${encodeURIComponent(eventId)}`);
     if (res.status === 404) {
       console.log('\n  the receiver has NO record of this event — it was rejected before the inbox.');
-      const sec = (await (await fetch(`${URL_BASE}/admin/security-events?limit=5`)).json()) as {
+      const sec = (await (await adminFetch(`${URL_BASE}/admin/security-events?limit=5`)).json()) as {
         data: { reason: string; detail: string | null; created_at: string }[];
       };
       const hit = sec.data[0];

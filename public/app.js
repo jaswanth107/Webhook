@@ -29,15 +29,70 @@ const fmtTime = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { hour12
 const fmtShort = (iso) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour12: false }) : '—');
 const num = (n) => Number(n ?? 0).toLocaleString();
 
+/* ------------------------------------------------------------- admin token
+   The receiver only demands a token when ADMIN_API_TOKEN is set. The dashboard
+   therefore assumes it is open, and reacts to the first 401 rather than asking
+   for credentials nobody may need. The token is kept per-browser and never
+   travels in a URL, where it would end up in history and server logs. */
+const TOKEN_KEY = 'fortress.adminToken';
+
+const readToken = () => {
+  try {
+    return localStorage.getItem(TOKEN_KEY) || '';
+  } catch {
+    return '';
+  }
+};
+const writeToken = (value) => {
+  try {
+    if (value) localStorage.setItem(TOKEN_KEY, value);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    /* private browsing -- the token simply won't persist */
+  }
+};
+
+/* Callers surface `err.message`, so the sentinel has to be the message itself:
+   the auth banner already explains this state and a red error bar on top of it
+   would just be noise. */
+const AUTH_ERROR_MESSAGE = 'Admin authentication required';
+class AuthError extends Error {}
+
 async function api(path, options) {
-  const res = await fetch(path, options);
+  const opts = { ...options };
+  const token = readToken();
+  if (token) opts.headers = { ...(opts.headers || {}), 'x-admin-token': token };
+
+  const res = await fetch(path, opts);
   const body = await res.json().catch(() => ({}));
+  if (res.status === 401 && path.startsWith('/admin/')) {
+    showAuthPrompt(token ? 'That token was rejected. Check it and try again.' : '');
+    throw new AuthError(AUTH_ERROR_MESSAGE);
+  }
   if (!res.ok) throw new Error(body.error || `${res.status} ${res.statusText}`);
+  hideAuthPrompt();
   return body;
+}
+
+function showAuthPrompt(note) {
+  const banner = $('#auth-banner');
+  if (!banner || !banner.hidden) {
+    if (banner && note) banner.querySelector('.auth-copy span').textContent = note;
+    return;
+  }
+  banner.hidden = false;
+  if (note) banner.querySelector('.auth-copy span').textContent = note;
+}
+
+function hideAuthPrompt() {
+  const banner = $('#auth-banner');
+  if (banner && !banner.hidden) banner.hidden = true;
 }
 
 function showError(message) {
   const banner = $('#global-error');
+  if (message === AUTH_ERROR_MESSAGE) return;
+  if (!banner) return;
   if (!message) {
     banner.hidden = true;
     return;
@@ -435,6 +490,23 @@ $('#next-page').addEventListener('click', () => {
     renderEvents().catch((err) => showError(err.message));
   }
 });
+/* ------------------------------------------------------------- auth banner */
+$('#auth-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const input = $('#auth-token');
+  const value = input.value.trim();
+  if (!value) return;
+  writeToken(value);
+  input.value = '';
+  hideAuthPrompt();
+  refresh();
+});
+$('#auth-forget').addEventListener('click', () => {
+  writeToken('');
+  $('#auth-token').value = '';
+  showAuthPrompt('Token cleared. Enter one to unlock the admin views.');
+});
+
 $('#refresh-btn').addEventListener('click', refresh);
 $('#auto-refresh').addEventListener('change', (e) => {
   state.auto = e.target.checked;

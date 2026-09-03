@@ -231,13 +231,19 @@ export async function listEvents(
   }
   const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
   const offset = (filter.page - 1) * filter.limit;
+  // Bound as parameters like every other value in this file. The controller's
+  // schema already coerces both to integers, but the safety belongs next to
+  // the SQL rather than a layer away from it.
+  const pageParams = [...params, filter.limit, offset];
+  const limitPlaceholder = `$${params.length + 1}`;
+  const offsetPlaceholder = `$${params.length + 2}`;
 
   const conn = db(client);
   const [{ rows: countRows }, { rows }] = await Promise.all([
     conn.query<{ total: number }>(`SELECT COUNT(*)::bigint AS total FROM webhook_events ${whereSql}`, params),
     conn.query<WebhookEventRow>(
-      `SELECT * FROM webhook_events ${whereSql} ORDER BY received_at DESC, id DESC LIMIT ${filter.limit} OFFSET ${offset}`,
-      params,
+      `SELECT * FROM webhook_events ${whereSql} ORDER BY received_at DESC, id DESC LIMIT ${limitPlaceholder} OFFSET ${offsetPlaceholder}`,
+      pageParams,
     ),
   ]);
   return { rows, total: Number(countRows[0]?.total ?? 0) };

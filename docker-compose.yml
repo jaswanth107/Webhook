@@ -29,9 +29,20 @@ services:
       DATABASE_URL: postgres://fortress:fortress@db:5432/webhook_fortress
       PORT: "3000"
       HOST: 0.0.0.0
-      NODE_ENV: production
+      # This stack exists to RUN THE HOSTILITY TEST, which needs deterministic
+      # failures and the chaos endpoints. Those are refused outright when
+      # NODE_ENV=production, so the demo stack is honest about not being one.
+      # A real deployment sets NODE_ENV=production, which then enforces a real
+      # WEBHOOK_SECRET, an ADMIN_API_TOKEN, and chaos/simulation being off.
+      NODE_ENV: ${NODE_ENV:-development}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       WEBHOOK_SECRET: ${WEBHOOK_SECRET:-super-secret-webhook-key-change-me}
+      # Unset by default so a fresh clone just works. Set it to lock /admin/*.
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-}
+      # Only trust X-Forwarded-For when a real proxy sits in front.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # 0 disables the backlog check; set it to make /health catch a stalled worker.
+      HEALTH_MAX_BACKLOG: ${HEALTH_MAX_BACKLOG:-0}
       MAX_PROCESSING_ATTEMPTS: ${MAX_PROCESSING_ATTEMPTS:-5}
       RETRY_BASE_DELAY_MS: ${RETRY_BASE_DELAY_MS:-1000}
       RETRY_MAX_DELAY_MS: ${RETRY_MAX_DELAY_MS:-60000}

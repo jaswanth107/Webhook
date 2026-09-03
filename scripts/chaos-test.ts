@@ -14,6 +14,7 @@ loadDotEnv();
 
 import { closePool, query, waitForDatabase } from '../server/src/db/pool.js';
 import { deliver, runPool, sign, sleep, waitForHealth } from './lib/sender.js';
+import { adminFetch } from './lib/adminFetch.js';
 
 const argv = process.argv.slice(2);
 const arg = (name: string, fallback: string): string => {
@@ -55,7 +56,7 @@ async function main(): Promise<void> {
       crashed = true;
       crashAtMs = Date.now();
       console.log(`  💥 killing the receiver after ${completed} deliveries (events still processing)`);
-      await fetch(`${URL_BASE}/admin/chaos/crash?delayMs=0`, { method: 'POST' }).catch(() => undefined);
+      await adminFetch(`${URL_BASE}/admin/chaos/crash?delayMs=0`, { method: 'POST' }).catch(() => undefined);
     }
     return res.status;
   });

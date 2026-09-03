@@ -16,6 +16,7 @@ loadDotEnv();
 
 import { buildPlan, type HostileDelivery } from './lib/plan.js';
 import { deliver, runPool, sign, sleep, waitForHealth } from './lib/sender.js';
+import { adminFetch } from './lib/adminFetch.js';
 
 interface Args {
   url: string;
@@ -160,7 +161,7 @@ async function main(): Promise<void> {
     crashTriggeredMs = Date.now();
     console.log(`\n  💥 MID-FLIGHT CRASH: killing the receiver after ${completed} deliveries...`);
     try {
-      await fetch(`${args.url}/admin/chaos/crash?delayMs=0`, { method: 'POST' });
+      await adminFetch(`${args.url}/admin/chaos/crash?delayMs=0`, { method: 'POST' });
     } catch {
       // The process can die before the response is flushed -- that is a success.
     }

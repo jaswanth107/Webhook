@@ -17,6 +17,7 @@ import { loadDotEnv } from '../server/src/config/dotenv.js';
 loadDotEnv();
 
 import { waitForHealth } from './lib/sender.js';
+import { adminFetch } from './lib/adminFetch.js';
 
 const argv = process.argv.slice(2);
 const useDocker = !argv.includes('--no-docker');
@@ -50,7 +51,7 @@ async function main(): Promise<void> {
   console.log('  receiver is healthy');
 
   console.log('\n▸ Resetting the database');
-  const reset = await fetch(`${baseUrl}/admin/chaos/reset`, { method: 'POST' }).catch(() => null);
+  const reset = await adminFetch(`${baseUrl}/admin/chaos/reset`, { method: 'POST' }).catch(() => null);
   if (!reset || !reset.ok) {
     // Chaos endpoints disabled -> fall back to the direct database reset.
     if (run('npx', ['tsx', 'scripts/db-reset.ts'], 'Resetting database directly') !== 0) {

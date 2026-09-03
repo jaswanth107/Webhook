@@ -284,3 +284,32 @@ pre.json {
   main { padding: 16px; }
   .card-value { font-size: 22px; }
 }
+
+
+/* ---------------------------------------------------------------- admin auth
+   Shown only when the admin API is token-protected and the browser has no
+   valid token yet. Deliberately louder than the error banner: it is a state
+   the operator has to act on, not a transient failure. */
+.banner-auth {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid var(--warn, #b8860b);
+  background: rgba(184, 134, 11, .10);
+  color: var(--fg, #e6edf3);
+}
+.banner-auth .auth-copy { display: flex; flex-direction: column; gap: 2px; }
+.banner-auth .auth-copy span { opacity: .75; font-size: 12.5px; }
+.auth-form { display: flex; gap: 8px; align-items: center; }
+.auth-form input {
+  background: rgba(0, 0, 0, .28);
+  border: 1px solid var(--border, #30363d);
+  border-radius: 4px;
+  color: inherit;
+  font: inherit;
+  padding: 7px 10px;
+  min-width: 260px;
+}
+.auth-form input:focus-visible { outline: 2px solid var(--accent, #58a6ff); outline-offset: 1px; }

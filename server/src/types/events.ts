@@ -85,4 +85,6 @@ export type SecurityRejectionReason =
   | 'MALFORMED_SIGNATURE'
   | 'INVALID_JSON'
   | 'SCHEMA_INVALID'
-  | 'BODY_TOO_LARGE';
+  | 'BODY_TOO_LARGE'
+  | 'ADMIN_TOKEN_MISSING'
+  | 'ADMIN_TOKEN_INVALID';
