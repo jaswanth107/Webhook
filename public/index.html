@@ -10,6 +10,10 @@
 </head>
 <body>
   <header class="topbar">
+    <button id="nav-toggle" class="btn btn-icon nav-toggle" type="button"
+            aria-label="Show views" aria-expanded="false" aria-controls="sidenav">
+      <span class="nav-toggle-bars" aria-hidden="true"></span>
+    </button>
     <div class="brand">
       <span class="brand-mark">🛡</span>
       <div>
@@ -29,12 +33,15 @@
 
   <div class="shell">
     <!-- Vertical navigation, pinned to the left edge; the header stays full width. -->
-    <nav class="sidenav" role="tablist" aria-label="Views">
+    <!-- Closes the nav drawer on narrow screens; inert (display:none) on wide ones. -->
+    <div id="nav-backdrop" class="nav-backdrop" hidden></div>
+
+    <nav id="sidenav" class="sidenav" role="tablist" aria-label="Views">
       <span class="sidenav-label">Views</span>
-      <button class="tab active" data-view="overview" role="tab"><span class="tab-mark">◈</span>Overview</button>
-      <button class="tab" data-view="events" role="tab"><span class="tab-mark">≡</span>Events</button>
-      <button class="tab" data-view="dead-letters" role="tab"><span class="tab-mark">🗃</span>Dead Letters</button>
-      <button class="tab" data-view="security" role="tab"><span class="tab-mark">🛡</span>Security</button>
+      <button class="tab active" data-view="overview" role="tab" aria-selected="true"><span class="tab-mark" aria-hidden="true">◈</span>Overview</button>
+      <button class="tab" data-view="events" role="tab" aria-selected="false"><span class="tab-mark" aria-hidden="true">≡</span>Events</button>
+      <button class="tab" data-view="dead-letters" role="tab" aria-selected="false"><span class="tab-mark" aria-hidden="true">🗃</span>Dead Letters</button>
+      <button class="tab" data-view="security" role="tab" aria-selected="false"><span class="tab-mark" aria-hidden="true">🛡</span>Security</button>
     </nav>
 
     <main>

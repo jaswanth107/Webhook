@@ -447,11 +447,72 @@ function syncUrl() {
 
 function switchView(view) {
   state.view = view;
-  for (const tab of document.querySelectorAll('.tab')) tab.classList.toggle('active', tab.dataset.view === view);
+  for (const tab of document.querySelectorAll('.tab')) {
+    const active = tab.dataset.view === view;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  }
   for (const section of document.querySelectorAll('.view')) section.hidden = section.id !== `view-${view}`;
+  closeNav();
   syncUrl();
   refresh();
 }
+
+/* ------------------------------------------------------------- navigation
+   The rail sits on the left at every width. Wide screens show it permanently;
+   below 900px the same element becomes a drawer over the content, so there is
+   only one nav to build, style and reason about -- the breakpoint changes how
+   it is revealed, never where it is. */
+const NAV_DRAWER_QUERY = window.matchMedia('(max-width: 900px)');
+const navEl = $('#sidenav');
+const navToggle = $('#nav-toggle');
+const navBackdrop = $('#nav-backdrop');
+
+const navIsDrawer = () => NAV_DRAWER_QUERY.matches;
+const navIsOpen = () => navEl.classList.contains('open');
+
+function openNav() {
+  if (!navIsDrawer() || navIsOpen()) return;
+  navEl.classList.add('open');
+  navBackdrop.hidden = false;
+  navToggle.setAttribute('aria-expanded', 'true');
+  navToggle.setAttribute('aria-label', 'Hide views');
+  focusNav();
+}
+
+/* Move focus into the drawer so keyboard and screen-reader users land where the
+   drawer just appeared, not back at the top of the document. It has to wait for
+   the slide-in: the rail is `visibility: hidden` until then, and focus() on a
+   hidden element silently does nothing. transitionend is the accurate signal;
+   the timeout covers the case where no transition runs at all (reduced motion,
+   or the drawer already part-way open). */
+function focusNav() {
+  let done = false;
+  const land = () => {
+    if (done) return;
+    done = true;
+    navEl.removeEventListener('transitionend', land);
+    if (navIsOpen()) navEl.querySelector('.tab.active, .tab')?.focus();
+  };
+  navEl.addEventListener('transitionend', land, { once: true });
+  setTimeout(land, 260);
+}
+
+function closeNav({ restoreFocus = false } = {}) {
+  if (!navIsOpen()) return;
+  navEl.classList.remove('open');
+  navBackdrop.hidden = true;
+  navToggle.setAttribute('aria-expanded', 'false');
+  navToggle.setAttribute('aria-label', 'Show views');
+  if (restoreFocus) navToggle.focus();
+}
+
+navToggle.addEventListener('click', () => (navIsOpen() ? closeNav({ restoreFocus: true }) : openNav()));
+navBackdrop.addEventListener('click', () => closeNav());
+
+// Widening past the breakpoint makes the rail permanent again; leaving the
+// drawer state set would strand the backdrop over a perfectly visible nav.
+NAV_DRAWER_QUERY.addEventListener('change', () => closeNav());
 
 document.querySelectorAll('.tab').forEach((tab) => tab.addEventListener('click', () => switchView(tab.dataset.view)));
 document.querySelectorAll('#status-filters .chip').forEach((chip) =>
@@ -514,7 +575,10 @@ $('#auto-refresh').addEventListener('change', (e) => {
 $('#drawer-close').addEventListener('click', closeDrawer);
 $('#drawer-backdrop').addEventListener('click', closeDrawer);
 document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape') closeDrawer();
+  if (e.key !== 'Escape') return;
+  // Innermost layer first: the event drawer sits above the nav drawer.
+  if (state.openEventId) closeDrawer();
+  else closeNav({ restoreFocus: true });
 });
 
 setInterval(() => {

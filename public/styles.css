@@ -70,7 +70,7 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--accent); }
 .brand-sub { margin: 0; font-size: 11px; color: var(--text-faint); letter-spacing: 0.04em; text-transform: uppercase; }
 .topbar-right { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
 
-.switch { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer; }
+.switch { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-dim); cursor: pointer; white-space: nowrap; }
 .switch input { accent-color: var(--accent); }
 
 .btn {
@@ -94,7 +94,7 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--accent); }
 .pill-muted { color: var(--text-faint); }
 
 /* ---- shell + left-hand navigation ---------------------------------------- */
-.shell { display: flex; align-items: flex-start; max-width: 1700px; margin: 0 auto; }
+.shell { display: flex; align-items: flex-start; width: 100%; }
 
 /* The nav is first in the DOM and first on screen: no `order` juggling needed. */
 .sidenav {
@@ -130,6 +130,13 @@ code { font-family: var(--mono); font-size: 0.92em; color: var(--accent); }
 .tab.active .tab-mark { opacity: 1; }
 
 main { order: 1; flex: 1 1 auto; min-width: 0; padding: 24px; }
+
+/* Very wide displays: the rail earns a little more room rather than leaving
+   the content to stretch to 3000px of unreadable table. */
+@media (min-width: 1800px) {
+  .sidenav { flex-basis: 250px; width: 250px; }
+  main { padding: 28px 32px; }
+}
 .view { display: flex; flex-direction: column; gap: 20px; animation: fade 0.2s ease; }
 @keyframes fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
 
@@ -263,26 +270,115 @@ pre.json {
 
 .footer { padding: 20px 24px 32px; display: flex; justify-content: space-between; gap: 12px; color: var(--text-faint); font-size: 11px; border-top: 1px solid var(--border); margin-top: 24px; flex-wrap: wrap; }
 
-/* Narrow screens: the side rail folds back into a horizontal strip above the
-   content, which is the only layout that stays usable below ~900px. */
+/* ---- narrow screens: the rail stays on the LEFT --------------------------
+   Below 900px it becomes an off-canvas drawer that slides in from the left
+   edge rather than folding into a horizontal strip. The navigation is then in
+   the same place at every width -- you reach it from the menu button instead
+   of scrolling a filmstrip of tabs. */
+
+/* Sizing only -- `display` for this button is owned by the .nav-toggle rules
+   below, so the two never fight over the cascade. */
+.btn-icon {
+  align-items: center; justify-content: center;
+  width: 36px; height: 34px; padding: 0; flex: none;
+}
+
+/* Wide screens: the rail is permanently visible, so the button is not needed. */
+.nav-toggle { display: none; }
+.nav-backdrop { display: none; }
+
 @media (max-width: 900px) {
-  .shell { flex-direction: column; }
+  .nav-toggle { display: inline-flex; }
+  .brand { margin-right: auto; }        /* keep the brand hard left beside the button */
+
   .sidenav {
-    order: 0; flex: none; width: 100%; height: auto; align-self: auto;
-    flex-direction: row; overflow-x: auto; gap: 4px; padding: 8px 12px;
-    border-right: none; border-bottom: 1px solid var(--border);
-    background: var(--bg); top: 71px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: 100dvh;                     /* dvh so mobile browser chrome can't clip it */
+    width: 250px;
+    flex-basis: 250px;
+    padding-top: 18px;
+    background: var(--surface);
+    border-right: 1px solid var(--border-strong);
+    box-shadow: var(--shadow);
+    z-index: 40;
+    transform: translateX(-100%);
+    visibility: hidden;                 /* keeps it out of the tab order when closed */
+    transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1), visibility 0.22s;
+    overflow-y: auto;
   }
-  .sidenav-label { display: none; }
-  .tab { width: auto; border-left: none; border-bottom: 2px solid transparent; border-radius: var(--radius-sm) var(--radius-sm) 0 0; }
-  .tab.active { border-left-color: transparent; border-bottom-color: var(--accent); }
+  .sidenav.open { transform: none; visibility: visible; }
+
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    z-index: 39;
+    animation: fade 0.15s ease;
+  }
+  .nav-backdrop[hidden] { display: none; }
+
+  /* The rail is out of flow now, so main takes the full width. */
+  main { width: 100%; }
 }
 
 @media (max-width: 700px) {
-  .topbar { flex-direction: column; align-items: flex-start; }
-  .sidenav { top: 118px; }
+  .topbar { padding: 10px 16px; gap: 8px; flex-wrap: wrap; }
+  .brand-sub { display: none; }
+  /* One controls row under the brand instead of three stacked rows -- a sticky
+     header that tall costs more screen than it earns on a phone. */
+  .topbar-right { width: 100%; gap: 8px; justify-content: space-between; flex-wrap: nowrap; }
+  #health-pill {
+    min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
   main { padding: 16px; }
   .card-value { font-size: 22px; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
+  .toolbar { align-items: stretch; }
+  .drawer { width: 100vw; border-left: none; }
+  .footer { padding: 16px 16px 24px; }
+}
+
+@media (max-width: 460px) {
+  .brand h1 { font-size: 15px; }
+  .cards { grid-template-columns: repeat(auto-fit, minmax(132px, 1fr)); }
+  .kv { grid-template-columns: 1fr; }
+  .sidenav { width: min(84vw, 250px); }
+}
+
+/* ---- menu button --------------------------------------------------------- */
+.nav-toggle-bars, .nav-toggle-bars::before, .nav-toggle-bars::after {
+  display: block; width: 15px; height: 1.5px; border-radius: 2px;
+  background: var(--text); content: ''; transition: transform 0.2s ease, opacity 0.2s ease;
+}
+.nav-toggle-bars { position: relative; }
+.nav-toggle-bars::before { position: absolute; top: -5px; }
+.nav-toggle-bars::after  { position: absolute; top: 5px; }
+/* Open state reads as a close affordance without swapping the icon out. */
+.nav-toggle[aria-expanded="true"] .nav-toggle-bars { background: transparent; }
+.nav-toggle[aria-expanded="true"] .nav-toggle-bars::before { top: 0; transform: rotate(45deg); }
+.nav-toggle[aria-expanded="true"] .nav-toggle-bars::after  { top: 0; transform: rotate(-45deg); }
+
+/* ---- accessibility ------------------------------------------------------- */
+/* Every interactive control gets a visible keyboard focus ring. */
+.btn:focus-visible,
+.tab:focus-visible,
+.chip:focus-visible,
+input:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 
