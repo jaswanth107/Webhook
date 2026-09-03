@@ -1,0 +1,61 @@
+# Render blueprint -- https://render.com/docs/blueprint-spec
+#
+# Deploys the receiver as a Docker web service on the free plan. The database is
+# NOT declared here on purpose: Render's own free Postgres expires, and losing
+# the inbox is the one failure this project exists to prevent. Point
+# DATABASE_URL at a Neon (or other managed) Postgres instead.
+#
+#   1. Create a free Postgres at neon.tech, copy its connection string
+#   2. In Render: New > Blueprint, pick this repo
+#   3. Paste the three secret values when prompted (see DEPLOY.md)
+
+services:
+  - type: web
+    name: webhook-fortress
+    runtime: docker
+    plan: free
+    region: oregon
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    autoDeploy: false
+
+    envVars:
+      # ---- required, entered by you (sync: false = Render prompts) ----------
+      # Neon connection string. MUST end with ?sslmode=require -- managed
+      # Postgres refuses plaintext, and the pg driver reads sslmode from the URL.
+      - key: DATABASE_URL
+        sync: false
+      # HMAC secret the sender signs with. Production refuses to boot if this is
+      # short or looks like the .env.example placeholder.
+      - key: WEBHOOK_SECRET
+        sync: false
+      # Guards /admin/*. Required in production -- the admin API exposes every
+      # stored payload and can replay dead letters.
+      - key: ADMIN_API_TOKEN
+        sync: false
+
+      # ---- fixed configuration ---------------------------------------------
+      - key: NODE_ENV
+        value: production
+      # Render terminates TLS at its proxy, so X-Forwarded-For is trustworthy
+      # here. This IP is what lands in security_events.remote_ip.
+      - key: TRUST_PROXY
+        value: "true"
+      # Free Postgres tiers cap connections, and Render runs the old and new
+      # instance concurrently during a deploy -- so budget for two of these.
+      - key: PG_POOL_MAX
+        value: "5"
+      # Deliberately 0. Render restarts a service whose health check returns
+      # non-2xx, so a backlog-driven 503 would turn a slow queue into a restart
+      # loop. Keep /health as pure liveness here and watch webhook_backlog_events
+      # from /metrics instead.
+      - key: HEALTH_MAX_BACKLOG
+        value: "0"
+      - key: LOG_LEVEL
+        value: info
+      # Both are refused in production anyway; set explicitly so the intent is
+      # visible in the Render dashboard rather than implied by a default.
+      - key: CHAOS_ENABLED
+        value: "false"
+      - key: SIMULATE_FAILURES
+        value: "false"

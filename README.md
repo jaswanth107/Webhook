@@ -32,6 +32,7 @@ proves that state with SQL.
 - [Out-of-order events](#out-of-order-events)
 - [HMAC security](#hmac-security)
 - [How to run](#how-to-run)
+- [Deploying it](#deploying-it)
 - [How to run the hostility test](#how-to-run-the-hostility-test)
 - [Testing with your own events](#testing-with-your-own-events)
 - [Expected results](#expected-results)
@@ -339,6 +340,13 @@ docker compose up --build     # Postgres + receiver, migrations run on boot
 
 The database lives in a named volume (`fortress_pgdata`) and survives receiver restarts —
 which is the point: killing the receiver must not lose a single event.
+
+### Deploying it
+
+Free-tier path (Render for the receiver, Neon for Postgres) is in
+**[DEPLOY.md](DEPLOY.md)**; `render.yaml` is the blueprint. Note that this is not
+a serverless app -- the worker is a long-lived loop and the retry schedule lives
+in `next_retry_at`, so it needs a host that keeps a process alive.
 
 ### Locally, without Docker for the app
 

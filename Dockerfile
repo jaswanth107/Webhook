@@ -30,6 +30,8 @@ COPY public ./public
 COPY package.json ./
 USER node
 EXPOSE 3000
+# Hosts that inject their own $PORT (Render, Fly, Cloud Run) would otherwise be
+# health-checked on a port nothing is listening on.
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=5 \
-  CMD curl -fsS http://127.0.0.1:3000/health || exit 1
+  CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/health" || exit 1
 CMD ["node", "dist/server/src/index.js"]
