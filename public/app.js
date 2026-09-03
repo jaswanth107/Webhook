@@ -11,7 +11,10 @@ const state = {
   page: 1,
   limit: 50,
   totalPages: 1,
-  auto: true,
+  // Off until the operator turns it on. Polling every 3s from the moment the
+  // page opens is work nobody asked for -- it holds a free-tier database awake
+  // and keeps a tab that was left open hitting the API all day.
+  auto: false,
   loading: false,
   openEventId: null,
 };
