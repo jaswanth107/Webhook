@@ -1,0 +1,12 @@
+# Vercel serves public/ as a static site. Nothing else needs uploading.
+node_modules
+dist
+server
+scripts
+tests
+sql
+tmp
+Dockerfile
+docker-compose.yml
+render.yaml
+*.log

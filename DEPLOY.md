@@ -93,6 +93,42 @@ admin token once and it is remembered in that browser.
 
 ---
 
+## Optional: the dashboard on Vercel
+
+`vercel.json` deploys `public/` as a static site and **rewrites** the API paths
+to the Render service:
+
+```
+/health        ->  https://<render-service>/health
+/metrics       ->  https://<render-service>/metrics
+/admin/:path*  ->  https://<render-service>/admin/:path*
+```
+
+The rewrite is what makes this work without touching a line of JavaScript. The
+dashboard only ever fetches relative paths, so from the browser's point of view
+every request is same-origin -- no CORS, no preflight, no `@fastify/cors`
+dependency, and no second place where an allowed-origin list can drift.
+
+`/webhooks/events` is deliberately **not** proxied. Senders should deliver
+straight to the receiver: an extra hop in front of the endpoint adds a failure
+mode and a timeout budget to the one path that must not lose a delivery.
+
+Deploy it with:
+
+```bash
+npx vercel --prod
+```
+
+or import the repo at vercel.com — no build command, no framework, output
+directory `public`.
+
+**If the Render URL ever changes, update the three destinations in
+`vercel.json`.** They are hardcoded on purpose: an env var would be read at
+build time only, so a stale value would fail silently at runtime instead of
+loudly at deploy.
+
+---
+
 ## Things that will bite you
 
 **The free web service sleeps** after ~15 minutes idle, and the first request
